@@ -11,26 +11,22 @@
 
     body {
       margin: 0;
+      padding: 0;
       background-color: #0f172a;
       color: #f8fafc;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      padding: 20px;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      position: relative;
     }
 
     .container {
-      position: relative;
-      width: 100%;
-      max-width: 640px;
-      border-radius: 16px;
-      overflow: hidden;
-      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
-      background: #1e293b;
-      aspect-ratio: 4 / 3;
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
     }
 
     video {
@@ -41,7 +37,7 @@
       height: 100%;
       object-fit: cover;
       transform: scaleX(-1);
-      transition: filter 0.3s ease;
+      transition: filter 0.2s ease;
     }
 
     canvas {
@@ -55,18 +51,34 @@
     }
 
     video.blurred {
-      filter: blur(20px);
+      filter: blur(25px);
+    }
+
+    .overlay {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      width: 90%;
+      max-width: 400px;
     }
 
     .status-box {
-      margin-top: 20px;
       padding: 12px 24px;
-      background: #1e293b;
-      border: 1px solid #334155;
+      background: rgba(30, 41, 59, 0.85);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
       border-radius: 12px;
       font-weight: 600;
       text-align: center;
       font-size: 15px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      width: 100%;
     }
 
     .start-btn {
@@ -78,12 +90,18 @@
       border: none;
       border-radius: 12px;
       cursor: pointer;
-      margin-bottom: 20px;
       transition: all 0.2s ease;
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+      width: 100%;
     }
 
     .start-btn:hover {
       background-color: #1d4ed8;
+    }
+
+    .start-btn:disabled {
+      background-color: #64748b;
+      cursor: not-allowed;
     }
   </style>
 
@@ -94,22 +112,20 @@
 </head>
 <body>
 
-  <button id="startBtn" class="start-btn">Klik untuk Mulai Kamera & Audio</button>
-
   <div class="container">
     <video id="webcam" autoplay playsinline muted></video>
     <canvas id="output_canvas"></canvas>
   </div>
 
-  <div class="status-box" id="status">Klik tombol di atas untuk memulai</div>
+  <div class="overlay">
+    <button id="startBtn" class="start-btn">Klik untuk Mulai Kamera & Audio</button>
+    <div class="status-box" id="status">Klik tombol di atas untuk memulai</div>
+  </div>
 
   <script>
-    const soundList = [
-      "https://www.image2url.com/r2/default/audio/1784948365624-da933e71-5bb1-4c25-be18-85bfff671379.mp3",
-      "https://www.image2url.com/r2/default/audio/1784948446680-5e93b61f-c085-4196-bf93-8aab9d11935d.mp3",
-      "https://www.image2url.com/r2/default/audio/1784948477887-3a2a8ba6-3ec1-4dcf-9603-6c9268f4e1a6.mp3",
-      "https://www.image2url.com/r2/default/audio/1784948508838-02d5248e-7830-4ebc-a16c-197a9a06ee2b.mp3"
-    ];
+    const soundUrl = "https://www.image2url.com/r2/default/audio/1784950542493-5ff5be3e-79e6-4819-a9c0-76dfe43d7cab.mp3";
+    const audio = new Audio(soundUrl);
+    audio.preload = "auto";
 
     const videoElement = document.getElementById('webcam');
     const canvasElement = document.getElementById('output_canvas');
@@ -117,47 +133,38 @@
     const statusElement = document.getElementById('status');
     const startBtn = document.getElementById('startBtn');
 
-    let isPeace = false;
-    let stepCount = 0;
-    
-    // Gunakan AudioContext agar playback audio stabil di browser mobile/desktop
-    let audioCtx = null;
-    const audioBuffers = [null, null, null, null];
+    let isPlayingSound = false;
+    let wasDoublePeace = false;
+    let isProcessing = false;
 
-    async function loadAudios() {
-      if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    audio.addEventListener('ended', () => {
+      isPlayingSound = false;
+      if (wasDoublePeace) {
+        statusElement.innerText = "Status: 2 TANGAN PEACE (Blur ON) - Sound Selesai";
+      } else {
+        statusElement.innerText = "Kamera Aktif: Tunjukkan 2 Tangan Peace ✌️✌️";
       }
-      if (audioCtx.state === 'suspended') {
-        await audioCtx.resume();
-      }
+    });
 
-      // Preload audio buffer untuk menghindari delay saat deteksi
-      for (let i = 0; i < soundList.length; i++) {
-        try {
-          const resp = await fetch(soundList[i]);
-          const arrayBuffer = await resp.arrayBuffer();
-          audioBuffers[i] = await audioCtx.decodeAudioData(arrayBuffer);
-        } catch (err) {
-          console.error("Gagal muat audio index " + i + ":", err);
-        }
-      }
-    }
+    audio.addEventListener('error', (e) => {
+      console.error("Audio playback error:", e);
+      isPlayingSound = false;
+    });
 
-    function playSound(index) {
-      if (!audioCtx || !audioBuffers[index]) return;
-      
-      try {
-        const source = audioCtx.createBufferSource();
-        source.buffer = audioBuffers[index];
-        source.connect(audioCtx.destination);
-        source.start(0);
-      } catch (e) {
-        console.error("Audio play error:", e);
+    function playSound() {
+      if (isPlayingSound) return;
+
+      isPlayingSound = true;
+      audio.currentTime = 0;
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(e => {
+          console.error("Audio play error:", e);
+          isPlayingSound = false;
+        });
       }
     }
 
-    // Hitung jarak 3D antar titik landmark
     function getDistance(p1, p2) {
       return Math.sqrt(
         Math.pow(p1.x - p2.x, 2) + 
@@ -166,27 +173,22 @@
       );
     }
 
-    // Algoritma deteksi gesture Peace fleksibel & akurat
     function isPeaceGesture(lm) {
       const wrist = lm[0];
 
-      // Jarak Ujung Jari ke Pergelangan
       const distIndexTip = getDistance(lm[8], wrist);
       const distMiddleTip = getDistance(lm[12], wrist);
       const distRingTip = getDistance(lm[16], wrist);
       const distPinkyTip = getDistance(lm[20], wrist);
 
-      // Jarak Pangkal Jari (MCP) ke Pergelangan
       const distIndexMcp = getDistance(lm[5], wrist);
       const distMiddleMcp = getDistance(lm[9], wrist);
       const distRingMcp = getDistance(lm[13], wrist);
       const distPinkyMcp = getDistance(lm[17], wrist);
 
-      // Telunjuk & Tengah Lurus (panjang jauh melampaui pangkal)
       const indexExtended = distIndexTip > distIndexMcp * 1.35;
       const middleExtended = distMiddleTip > distMiddleMcp * 1.35;
 
-      // Manis & Kelingking Ditekuk (panjang tidak jauh dari pangkal)
       const ringFolded = distRingTip < distRingMcp * 1.25;
       const pinkyFolded = distPinkyTip < distPinkyMcp * 1.25;
 
@@ -194,60 +196,80 @@
     }
 
     function onResults(results) {
-      // Pastikan canvas pas dengan resolusi stream video aktual
-      if (videoElement.videoWidth && videoElement.videoHeight) {
-        if (canvasElement.width !== videoElement.videoWidth || canvasElement.height !== videoElement.videoHeight) {
-          canvasElement.width = videoElement.videoWidth;
-          canvasElement.height = videoElement.videoHeight;
-        }
+      const containerWidth = window.innerWidth;
+      const containerHeight = window.innerHeight;
+
+      if (canvasElement.width !== containerWidth || canvasElement.height !== containerHeight) {
+        canvasElement.width = containerWidth;
+        canvasElement.height = containerHeight;
       }
 
       canvasCtx.save();
       canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
 
-      let detectedPeace = false;
+      let peaceCount = 0;
 
-      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0 && videoElement.videoWidth) {
+        const vWidth = videoElement.videoWidth;
+        const vHeight = videoElement.videoHeight;
+
+        const videoRatio = vWidth / vHeight;
+        const containerRatio = containerWidth / containerHeight;
+
+        let renderWidth, renderHeight, offsetX, offsetY;
+
+        if (containerRatio > videoRatio) {
+          renderWidth = containerWidth;
+          renderHeight = containerWidth / videoRatio;
+          offsetX = 0;
+          offsetY = (containerHeight - renderHeight) / 2;
+        } else {
+          renderWidth = containerHeight * videoRatio;
+          renderHeight = containerHeight;
+          offsetX = (containerWidth - renderWidth) / 2;
+          offsetY = 0;
+        }
+
         for (const landmarks of results.multiHandLandmarks) {
-          // Render visualisasi skeleton tangan
-          drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: '#00FF00', lineWidth: 2});
-          drawLandmarks(canvasCtx, landmarks, {color: '#FF0000', lineWidth: 1, radius: 3});
+          const adjustedLandmarks = landmarks.map(lm => ({
+            x: (lm.x * renderWidth + offsetX) / containerWidth,
+            y: (lm.y * renderHeight + offsetY) / containerHeight,
+            z: lm.z
+          }));
+
+          drawConnectors(canvasCtx, adjustedLandmarks, HAND_CONNECTIONS, {color: '#00FF00', lineWidth: 2});
+          drawLandmarks(canvasCtx, adjustedLandmarks, {color: '#FF0000', lineWidth: 1, radius: 3});
 
           if (isPeaceGesture(landmarks)) {
-            detectedPeace = true;
+            peaceCount++;
           }
         }
       }
 
       canvasCtx.restore();
 
-      // State Machine Transisi Pose & Audio
-      if (detectedPeace && !isPeace) {
-        isPeace = true;
+      const detectedDoublePeace = (peaceCount >= 2);
+
+      if (detectedDoublePeace) {
         videoElement.classList.add('blurred');
 
-        if (stepCount === 0) {
-          stepCount = 1;
-          playSound(0);
-          statusElement.innerText = "Status: PEACE 1 (Blur ON) - Sound 1";
-        } else if (stepCount === 2) {
-          stepCount = 3;
-          playSound(2);
-          statusElement.innerText = "Status: PEACE 2 (Blur ON) - Sound 3";
+        if (!wasDoublePeace) {
+          wasDoublePeace = true;
+          if (!isPlayingSound) {
+            statusElement.innerText = "Status: 2 TANGAN PEACE (Blur ON) - Memutar Sound 1";
+            playSound();
+          }
+        } else {
+          if (!isPlayingSound) {
+            statusElement.innerText = "Status: 2 TANGAN PEACE (Blur ON) - Sound Selesai";
+          }
         }
-      } 
-      else if (!detectedPeace && isPeace) {
-        isPeace = false;
+      } else {
         videoElement.classList.remove('blurred');
+        wasDoublePeace = false;
 
-        if (stepCount === 1) {
-          stepCount = 2;
-          playSound(1);
-          statusElement.innerText = "Status: LEPAS 1 (Blur OFF) - Sound 2";
-        } else if (stepCount === 3) {
-          stepCount = 4;
-          playSound(3);
-          statusElement.innerText = "Status: LEPAS 2 (Blur OFF) - Sound 4";
+        if (!isPlayingSound) {
+          statusElement.innerText = "Kamera Aktif: Tunjukkan 2 Tangan Peace ✌️✌️";
         }
       }
     }
@@ -257,8 +279,8 @@
     });
 
     hands.setOptions({
-      maxNumHands: 1,
-      modelComplexity: 1,
+      maxNumHands: 2,
+      modelComplexity: 0,
       minDetectionConfidence: 0.5,
       minTrackingConfidence: 0.5
     });
@@ -267,13 +289,27 @@
 
     startBtn.addEventListener('click', async () => {
       startBtn.disabled = true;
-      startBtn.innerText = "Memuat Audio & Kamera...";
+      startBtn.innerText = "Memulai Kamera...";
 
-      await loadAudios();
+      audio.muted = true;
+      const p = audio.play();
+      if (p !== undefined) {
+        p.then(() => {
+          audio.pause();
+          audio.currentTime = 0;
+          audio.muted = false;
+        }).catch(() => {
+          audio.muted = false;
+        });
+      }
 
       const camera = new Camera(videoElement, {
         onFrame: async () => {
-          await hands.send({ image: videoElement });
+          if (!isProcessing) {
+            isProcessing = true;
+            await hands.send({ image: videoElement });
+            isProcessing = false;
+          }
         },
         width: 640,
         height: 480
@@ -282,7 +318,7 @@
       try {
         await camera.start();
         startBtn.style.display = 'none';
-        statusElement.innerText = "Kamera Aktif: Tunjukkan Tangan Peace ✌️";
+        statusElement.innerText = "Kamera Aktif: Tunjukkan 2 Tangan Peace ✌️✌️";
       } catch (err) {
         console.error("Gagal membuka kamera:", err);
         statusElement.innerText = "Error: Kamera tidak dapat diakses.";
