@@ -103,6 +103,103 @@
       background-color: #64748b;
       cursor: not-allowed;
     }
+
+    /* Container Lirik di Tengah Layar Presisi */
+    .lyrics-container {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 20;
+      width: 90%;
+      max-width: 900px;
+      text-align: center;
+      pointer-events: none;
+      min-height: 120px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .lyric-text {
+      color: #ffffff;
+      text-shadow: 0 6px 30px rgba(0, 0, 0, 0.95), 0 0 15px rgba(0, 0, 0, 0.8);
+      margin: 0;
+      opacity: 0;
+      display: none;
+      line-height: 1.2;
+    }
+
+    /* Lirik Utama */
+    .lyric-text.main-lyric {
+      font-size: 3.2rem;
+      font-weight: 900;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      background: linear-gradient(135deg, #ffffff 0%, #e2e8f0 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0 0 20px rgba(255, 255, 255, 0.5));
+    }
+
+    .lyric-text.main-lyric.active {
+      display: block;
+      animation: popGlow 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    }
+
+    /* Lirik Pendukung */
+    .lyric-text.sub-lyric {
+      font-size: 2.4rem;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+    }
+
+    .lyric-text.sub-lyric.active {
+      display: block;
+      animation: slideUpFade 0.6s ease-out forwards;
+    }
+
+    /* Teks Merah Capslock */
+    .highlight-red {
+      color: #ef4444 !important;
+      -webkit-text-fill-color: #ef4444 !important;
+      text-shadow: 0 0 18px rgba(239, 68, 68, 0.8);
+      font-weight: 900;
+    }
+
+    @keyframes popGlow {
+      0% {
+        opacity: 0;
+        transform: scale(0.6) translateY(20px);
+      }
+      70% {
+        transform: scale(1.08) translateY(-5px);
+      }
+      100% {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+      }
+    }
+
+    @keyframes slideUpFade {
+      0% {
+        opacity: 0;
+        transform: translateY(30px);
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (max-width: 640px) {
+      .lyric-text.main-lyric {
+        font-size: 2.2rem;
+      }
+      .lyric-text.sub-lyric {
+        font-size: 1.6rem;
+      }
+    }
   </style>
 
   <!-- MediaPipe Libraries -->
@@ -122,6 +219,10 @@
     <div class="status-box" id="status">Klik tombol di atas untuk memulai</div>
   </div>
 
+  <div class="lyrics-container">
+    <div id="lyricBox" class="lyric-text"></div>
+  </div>
+
   <script>
     const soundUrl = "https://www.image2url.com/r2/default/audio/1784950542493-5ff5be3e-79e6-4819-a9c0-76dfe43d7cab.mp3";
     const audio = new Audio(soundUrl);
@@ -132,13 +233,59 @@
     const canvasCtx = canvasElement.getContext('2d');
     const statusElement = document.getElementById('status');
     const startBtn = document.getElementById('startBtn');
+    const lyricBox = document.getElementById('lyricBox');
 
     let isPlayingSound = false;
     let wasDoublePeace = false;
     let isProcessing = false;
 
+    // Timeline Lirik (Sesuai detik yang diminta)
+    const lyricsData = [
+      { start: 0.25, end: 3.5,  html: 'FOTO KITA BLUR', isMain: true },
+      { start: 3.8,  end: 6.0,  html: 'Tak Banyak Yang Kulihat', isMain: false },
+      { start: 6.5,  end: 9.0,  html: 'FOTO KITA BLUR', isMain: true },
+      { start: 9.9,  end: 13.0, html: 'Tapi Banyak Yang Aku <span class="highlight-red">INGAT</span>', isMain: false },
+      { start: 13.8, end: 16.5, html: 'FOTO KITA BLUR', isMain: true },
+      { start: 17.5, end: 20.0, html: 'Kita Pernah Begitu <span class="highlight-red">DEKAT</span>', isMain: false },
+      { start: 20.5, end: 23.0, html: 'FOTO KITA BLUR', isMain: true },
+      { start: 23.8, end: 27.5, html: 'Kini Memorinya Ku Dekap', isMain: false }
+    ];
+
+    let currentLyricIndex = -1;
+
+    audio.addEventListener('timeupdate', () => {
+      if (!isPlayingSound) return;
+
+      const currentTime = audio.currentTime;
+      let activeIndex = -1;
+
+      for (let i = 0; i < lyricsData.length; i++) {
+        if (currentTime >= lyricsData[i].start && currentTime <= lyricsData[i].end) {
+          activeIndex = i;
+          break;
+        }
+      }
+
+      if (activeIndex !== currentLyricIndex) {
+        currentLyricIndex = activeIndex;
+
+        if (activeIndex !== -1) {
+          const lyric = lyricsData[activeIndex];
+          lyricBox.innerHTML = lyric.html;
+          lyricBox.className = 'lyric-text active ' + (lyric.isMain ? 'main-lyric' : 'sub-lyric');
+        } else {
+          lyricBox.className = 'lyric-text';
+          lyricBox.innerHTML = '';
+        }
+      }
+    });
+
     audio.addEventListener('ended', () => {
       isPlayingSound = false;
+      currentLyricIndex = -1;
+      lyricBox.className = 'lyric-text';
+      lyricBox.innerHTML = '';
+
       if (wasDoublePeace) {
         statusElement.innerText = "Status: 2 TANGAN PEACE (Blur ON) - Sound Selesai";
       } else {
@@ -149,12 +296,16 @@
     audio.addEventListener('error', (e) => {
       console.error("Audio playback error:", e);
       isPlayingSound = false;
+      currentLyricIndex = -1;
+      lyricBox.className = 'lyric-text';
+      lyricBox.innerHTML = '';
     });
 
     function playSound() {
       if (isPlayingSound) return;
 
       isPlayingSound = true;
+      currentLyricIndex = -1;
       audio.currentTime = 0;
       const playPromise = audio.play();
       if (playPromise !== undefined) {
